@@ -1,4 +1,4 @@
-CLASS zcl_mpc_b2_ex07_texto DEFINITION
+CLASS zcl_mpc_b2_ex07_1_texto DEFINITION
   PUBLIC
   FINAL
   CREATE PUBLIC .
@@ -13,7 +13,7 @@ ENDCLASS.
 
 
 
-CLASS zcl_mpc_b2_ex07_texto IMPLEMENTATION.
+CLASS zcl_mpc_b2_ex07_1_texto IMPLEMENTATION.
 
 
   METHOD if_oo_adt_classrun~main.
@@ -420,7 +420,7 @@ DATA: lv_text40    TYPE string,
 lv_text40 = 'Please contact us at support@logali.com for more information'.
 lv_pattern40 = '\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b'.  " regex for an email
 
-IF contains( val = lv_text40 pcre = lv_pattern40 ).
+IF contains( val = lv_text40 pcre = lv_pattern40 ). " rgex obsoleto . usar pcre para pasar expresiones regulares
   out->write( 'The text contains an email address' ).
 
   DATA(lv_count) = count( val = lv_text40 pcre = lv_pattern40 ).
@@ -439,6 +439,7 @@ ENDIF.
 
 *"---------------------------------------------------------
 *" COUNT con expresión regular (PCRE)
+"¿cuántes veces se repiten la coincidencia?
 *" Cuenta cuántas coincidencias del patrón existen en el texto
 *" Devuelve un número entero con el total de ocurrencias encontradas
 *DATA(lv_count) = count( val = lv_text pcre = lv_pattern ).
