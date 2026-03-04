@@ -510,51 +510,493 @@ CLASS zcl_mpc_b4_ex09_2_itab IMPLEMENTATION.
 
  "2.8  Instrucción COLLECT
  """""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
- "COLLECT
- " iNSERTA el contenido de una estructura (ej 1 fila) en una TI O AÑADIENDO
- " los valores de sus componentes numéricos a los valores correspondientes
- " de las filas existentes con la mismas claves primarias
- " así evitamos registro duplicados
- " OBSOLETO PARA TABLAS ESTANDAR
- " uso para tablas hash y sort (con clave primaria única)
+* "COLLECT
+* " iNSERTA el contenido de una estructura (ej 1 fila) en una TI O AÑADIENDO
+* " los valores de sus componentes numéricos a los valores correspondientes
+* " de las filas existentes con la mismas claves primarias
+* " así evitamos registro duplicados
+* " OBSOLETO PARA TABLAS ESTANDAR
+* " uso para tablas hash y sort (con clave primaria única)
+*
+* "requisito previo: estructura SEA compatible con el tipo de fila de la TI
+*
+*
+* "Este bloque demuestra la definición de una estructura auxiliar para agregación de datos (COLLECT), junto con la declaración de una tabla interna de tipo HASHED con clave única compuesta (carrid, connid), optimizada para búsquedas por clave y consolida
+"c
+*"ión automática de valores numéricos mediante la sentencia COLLECT.
+*
+*DATA: BEGIN OF ls_seats,
+*        carrid TYPE /dmo/flight-carrier_id,
+*        connid TYPE /dmo/flight-connection_id,
+*        seats  TYPE /dmo/flight-seats_max,
+*        price  TYPE /dmo/flight-price,
+*      END OF ls_seats.
+*
+*DATA gt_seats LIKE HASHED TABLE OF ls_seats WITH UNIQUE KEY carrid connid.
+*"con el LIKE hacemos referencia a una variable existente en el conteto de nuestro programa
+*
+* "Este bloque demuestra la lectura de registros desde la tabla de base de datos /dmo/flight
+* " seleccionando campos específicos (carrier_id, connection_id, seats_max y price)
+* "y cargándolos directamente en una estructura de trabajo,
+* " preparando los datos para su posterior procesamiento o agregación en memoria.
+*
+*    SELECT carrier_id, connection_id, seats_max, price
+*      FROM /dmo/flight
+*      INTO @ls_seats.
+*
+*      "Este bloque demuestra el uso de la sentencia COLLECT para insertar registros en
+*      "una tabla interna HASHED con clave única, permitiendo que,
+*      "si ya existe una entrada con la misma clave (carrid, connid),
+*      "los campos numéricos se acumulen automáticamente en lugar de generar un nuevo registro.
+*      " si no existe una entrada con la misma clave primeria se inserta con el contenido de la estructura
+*      " (sort = en el mismo orden que la tabla y en
+*      " hash = el algoritmo inserta la nueva fila de acuerdo a sus valores clave)
+*
+*        COLLECT ls_seats INTO gt_seats.
+*
+*  ENDSELECT.
 
- "requisito previo: estructura SEA compatible con el tipo de fila de la TI
+ "2.9  Instrucción LET
+ """""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
+* "LET
+* " DEF  esta expresión nos ayuda a def var o simbolos de campos
+* "como campos auxiliares locales en una expresión y a estos les asigna los valores
+* " para evitar declaraciones no deseadas de variables auxiliares
+* " en la variables se puede guardar: texto , valor númérico , otros
+* " Ahorra código
+*
+*
+* """""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
+* "Este bloque demuestra la selección de registros desde la tabla /dmo/flight filtrando por moneda 'USD'
+* "y su carga en una tabla interna inline, junto con una segunda selección limitada de registros
+* "desde /dmo/booking_m, preparando los datos para su posterior procesamiento mediante
+* "LOOP sobre la tabla de vuelos en memoria. LOOP volcará la información en la estructura ls_flight_let
+* " La variable donde se guarda la información lv_flights se declara en línea (ahí guardaremos el resultado
+* " de la operación LET
+* " Detrás de LET se inclyen las variables auxiliares [ incluir filtro ] en las que guardamos un valor no una estructura
+* " Las variables auxiliares las concatenamos y la guardamos en la variable lv_flights.
+*
+*
+*SELECT FROM /dmo/flight
+*  FIELDS *
+*  WHERE currency_code EQ 'USD'
+*  INTO TABLE @DATA(lt_flights).
+*
+*SELECT FROM /dmo/booking_m
+*  FIELDS *
+*  INTO TABLE @DATA(lt_airline)
+*  UP TO 50 ROWS. "Limitado a 50 registros
+*
+*LOOP AT lt_flights INTO DATA(ls_flight_let).
+*
+*    "BLOQUE 1 LET
+*
+*    "Este bloque demuestra el uso avanzado de la expresión LET dentro de una conversión a string
+*    "mediante CONV, permitiendo definir variables auxiliares inline a partir de lecturas por clave
+*    "en tablas internas, para posteriormente construir dinámicamente un texto formateado
+*    "utilizando plantillas de cadena (string templates) con los valores recuperados.
+*
+*    DATA(lv_flights) = CONV string(
+*      LET lv_airline      = lt_airline[ carrier_id = ls_flight_let-carrier_id ]-travel_id
+*          lv_flight_price = lt_flights[ carrier_id = ls_flight_let-carrier_id
+*                                         connection_id = ls_flight_let-connection_id ]-price
+*          lv_carrid       = lt_airline[ carrier_id = ls_flight_let-carrier_id ]-carrier_id
+*      IN | { lv_carrid } / Airline name: { lv_airline } / Flight price: { lv_flight_price } |
+*    ).
+*
+*    out->write( data = lv_flights ).
+*
+*
+*ENDLOOP.
+
+" 2.10. Instrucción BASE
+""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
+*" se puede usar dentro de otro operador para tomar en cuenta
+*" los registros de otra tabla interna o de la misma ti en tiempo de ejecución
+*" El tipo de TI debe ser convertible al tipo de fila del valor de retorno
+*" Indicarlo implicito o explicito el tipo de TI si con # no se puede determinar el tipo del valor de retorno???
+*" Uso con estructuras o TI Y en expresiones como corresponding, NEW o value
+*
+*" VALUE
+*
+*" LINES OF agregar lines para tener en cuenta más TI
+*
+*" CORRESPONDING
+*
+*""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
+*
+*" Ej VALUE agregamos los registros a una TI
+*" BASE (NOMBRE tabla interna de donde tomamos los registros y luego (AGREGAMOS los nuevos registros dentro del paréntesis)),.
+*
+*""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
+*
+*SELECT FROM /dmo/flight
+*  FIELDS *
+*  WHERE currency_code EQ 'USD'
+*  INTO TABLE @DATA(lt_flights).
+*
+*SELECT FROM /dmo/booking_m
+*  FIELDS *
+*  INTO TABLE @DATA(lt_airline)
+*  UP TO 50 ROWS. "Limitado a 50 registros
+*
+*"Este bloque demuestra la visualización del estado inicial de una tabla interna mediante salida por consola y la posterior declaración explícita de una nueva tabla interna tipada con la estructura de base de datos /dmo/flight, preparando el entorno para
+*"trabajar con la instrucción BASE en construcciones modernas de tablas.
+*
+*out->write( data = lt_flights name = 'INITIAL lt_flights' ).
+*
+*DATA lt_seats TYPE TABLE OF /dmo/flight.
+*
+*"BLOQUE 1
+*"Este bloque demuestra el uso de la expresión VALUE con la cláusula BASE para crear una nueva tabla interna partiendo del contenido existente de lt_flights y añadiendo un nuevo registro construido inline, utilizando sintaxis moderna ABAP 7.4+ para exten
+"d
+*"er tablas de forma declarativa en memoria.
+*
+*lt_seats = VALUE #( BASE lt_flights
+*                    ( carrier_id    = 'CO'
+*                      connection_id = '000123'
+*                      flight_date   = cl_abap_context_info=>get_system_date( )
+*                      price         = '2000'
+*                      currency_code = 'COP'
+*                      plane_type_id = 'B213-58'
+*                      seats_max     = 120
+*                      seats_occupied = 100 ) ).
+*
+*out->write( data = lt_seats name = 'lt_seats_BASE' ).
+*
+*"BLOQUE 2
+*"LINES OF
+*"Este bloque demuestra el uso avanzado de la expresión VALUE combinada con BASE y LINES OF para reconstruir una tabla interna tomando como base su contenido actual, incorporando además todas las líneas de otra tabla (lt_flight) y añadiendo finalmente un
+*"nuevo registro construido inline mediante sintaxis moderna ABAP.
+*
+*lt_seats = VALUE #( BASE lt_seats ( LINES OF lt_flights )
+*                    ( carrier_id     = 'CO'
+*                      connection_id  = '000123'
+*                      flight_date    = cl_abap_context_info=>get_system_date( )
+*                      price          = '2000'
+*                      currency_code  = 'COP'
+*                      plane_type_id  = 'B213-58'
+*                      seats_max      = 120
+*                      seats_occupied = 100 ) ).
+*
+*out->write( data = lt_seats name = 'lt_seats_BASE_LINES_OF' ).
+*
+*"BLOQUE 3
+*"CORRESPONDING
+*"Este bloque demuestra el uso de la expresión CORRESPONDING combinada con la cláusula BASE para reconstruir la tabla interna lt_seats a partir de su contenido previo, incorporando además los registros de lt_flights mediante asignación automática de camp
+"o
+*"s con el mismo nombre y tipo, utilizando sintaxis moderna declarativa de ABAP 7.4+.
+*
+*lt_seats = CORRESPONDING #( BASE ( lt_seats ) lt_flights ).
+*
+*out->write( data = lt_seats name = 'lt_seats' ).
+
+" 2.11. AGRUPACION DE REGISTROS - GROUP BY
+""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
+*"GROUP BY
+*" AGRUPA las filas de una TI y ejecuta en bucle estos grupos
+*" variante de LOOP AT
+*
+*""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
+*" ej ETAPA 1 primer LOOP AT
+*" Para cada fila leida con LOOP AT se construye una clave de grupo
+*" la que se haya especificado después de la sentencia group by
+*" cada clave de grupo representa un grupo y cada fila se asigna a ese grupo
+*" si coincide el contenido y se identifica como un miembro de grupo
+*" sÓLO muestra el primer registro que encuentre para cada grupo
+*" no se muestra todos los miembros de cada agrupación
+*" sirve por ej para saber cuántos tipos de carrier_id tenemos en el contenido de TI
+*
+*" EJ ETAPA 2 segundo LOOP AT
+*" FIN ver en la TI todos los miembros de cada grupo (carrier_id)
+*" Declarar una variable gt_members que va a alojar los miembros del grupo
+*" LIKE para que tenga el mismo tipo que gt_dmo_fligth
+*
+*""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
+*"GROUP BY
+*"Este bloque demuestra la carga completa de la tabla /dmo/flight en una tabla interna y su posterior recorrido mediante LOOP ASSIGNING con FIELD-SYMBOL, permitiendo el acceso directo a cada registro en memoria para su procesamiento eficiente sin copias d
+*"e estructura.
+*
+*SELECT FROM /dmo/flight
+*  FIELDS *
+*  INTO TABLE @DATA(gt_dmo_flight).
+*
+*"Este bloque demuestra el uso completo de LOOP AT ... GROUP BY en ABAP moderno,
+*"donde los registros se agrupan dinámicamente por carrier_id, se
+*"reinicializa una tabla auxiliar para cada grupo y se reconstruye mediante VALUE con BASE
+*"iterando sobre los miembros del grupo con LOOP AT GROUP, mostrando finalmente cada agrupación en consola.
+*
+*DATA gt_members LIKE gt_dmo_flight.
+*
+*
+*"Grouping by column
+*LOOP AT gt_dmo_flight ASSIGNING FIELD-SYMBOL(<lfs_dmo_flight>)
+*
+*
+*
+*" ETAPA 1
+*"Este bloque demuestra el uso de LOOP AT ... GROUP BY en programación moderna ABAP,
+*"agrupando dinámicamente los registros de la tabla interna por el campo carrier_id y
+*" permitiendo procesar cada grupo lógico en memoria antes de mostrar el contenido
+*" mediante salida por consola.
+*" ETAPA 1.1 AGRUPAR POR UNA COLUMNA = AEROLINEA
+*
+*    "Grouping by 1 column of groups
+**    GROUP BY <lfs_dmo_flight>-carrier_id. " AGRUPAR POR UNA COLUMNA
+**
+**    out->write( data = <lfs_dmo_flight> name = '<lfs_dmo_flight>' ).
+*
+* "ETAPA 1.2 AGRUPAR POR EL CODIGO DE AEROLINEA Y TIPO DE AVION (comentar etapa 1.1.?
+*"Este bloque demuestra el uso avanzado de GROUP BY con agrupación estructurada en ABAP moderno, permitiendo definir una clave compuesta mediante alias (airline y plane) para agrupar dinámicamente los registros por carrier_id y plane_type_id dentro de un
+*"LOOP AT ... GROUP BY.
+****
+*   "Grouping by more than one column of groups
+*    GROUP BY ( airline = <lfs_dmo_flight>-carrier_id
+*               plane   = <lfs_dmo_flight>-plane_type_id ).
+*
+* " ETAPA 2 - DECLARAR VARIABLE GT_MEMBERS
+* "Este bloque demuestra el procesamiento de los miembros de cada grupo generado mediante LOOP AT GROUP,
+* "insertando cada registro agrupado en una tabla interna auxiliar utilizando la expresión VALUE con BASE
+* " para extender progresivamente la colección, y mostrando posteriormente el resultado consolidado en consola.
+*
+*     CLEAR gt_members.
+*
+*    LOOP AT GROUP <lfs_dmo_flight> INTO DATA(gs_member).
+*
+*      gt_members = VALUE #( BASE gt_members ( gs_member ) ).
+*
+*    ENDLOOP.
+*
+*    out->write( data = gt_members name = 'gt_members' ).
+*
+*ENDLOOP.
 
 
- "Este bloque demuestra la definición de una estructura auxiliar para agregación de datos (COLLECT), junto con la declaración de una tabla interna de tipo HASHED con clave única compuesta (carrid, connid), optimizada para búsquedas por clave y consolidac
-"ión automática de valores numéricos mediante la sentencia COLLECT.
+" 2.12. Agrupar por clave
+""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
+*" ver cómo realizar las agrupaciones por clave
+*" se puede declarar en linea en una sentencia de group by una clave en grupo sin
+*" usar el apuntador
+*" usar una clave de grupo explícita (gs_key) en lugar de apuntador
+*" witouth members - no se puede usar LOOP. Vemos info adicional ¿cuántos miembros y posición de cada grupo
+*" es otra forma de visualizarlo
+*
+*SELECT FROM /dmo/flight
+*  FIELDS *
+*  INTO TABLE @DATA(gt_dmo_flight).
+*
+*DATA gt_members LIKE gt_dmo_flight.
+*
+*"BLOQUE 1
+**
+**"Grouping by column
+**LOOP AT gt_dmo_flight ASSIGNING FIELD-SYMBOL(<lfs_dmo_flight>)
+**
+**    "Grouping by more than one column of groups
+**    ""Este bloque demuestra la agrupación estructurada por múltiples columnas
+**    "utilizando una clave de grupo explícita (gs_key) mediante INTO DATA,
+**    "sustituyendo el uso directo del apuntador del LOOP por una estructura de clave que representa el grupo actual.
+**
+**    GROUP BY ( airline = <lfs_dmo_flight>-carrier_id
+**               plane   = <lfs_dmo_flight>-plane_type_id ) INTO DATA(gs_key). "declaramos clave de grupo
+**
+**     CLEAR gt_members.
+**
+***    LOOP AT GROUP <lfs_dmo_flight> INTO DATA(gs_member). " sustituir el apuntador por clave de grupo
+**     LOOP AT GROUP gs_key INTO DATA(gs_member). " sustituir el apuntador por clave de grupo
+**
+**      gt_members = VALUE #( BASE gt_members ( gs_member ) ).
+**
+**    ENDLOOP.
+**
+**    out->write( data = gt_members name = 'gt_members' ).
+**
+**    "Este bloque demuestra la visualización de la clave de grupo (gs_key) generada en la sentencia GROUP BY, permitiendo inspeccionar en consola los valores que identifican cada agrupación lógica creada durante la iteración.
+**
+**    out->write( data = gs_key name = 'gs_key' ).
+**
+**ENDLOOP.
+*
+*"BLOQUE 2 without members
+*
+*"Grouping by column
+*LOOP AT gt_dmo_flight ASSIGNING FIELD-SYMBOL(<lfs_dmo_flight>)
+*
+*    "Grouping by more than one column of groups
+*    "Este bloque demuestra el uso avanzado de GROUP BY con múltiples columnas,
+*    "incluyendo la definición explícita de alias de grupo (airline, plane),
+*    "así como el uso de GROUP INDEX y GROUP SIZE para obtener metadatos del grupo.
+*    "La cláusula WITHOUT MEMBERS evita cargar las filas individuales,
+*    "trabajando únicamente con la clave y atributos del grupo.
+*
+*    GROUP BY ( airline = <lfs_dmo_flight>-carrier_id
+*               plane   = <lfs_dmo_flight>-plane_type_id
+*               index   = GROUP INDEX
+*               size    = GROUP SIZE ) WITHOUT MEMBERS INTO DATA(gs_key). "no mostramos miembros , si info sobre agrupaciones
+*
+*
+*    out->write( data = gs_key name = 'gs_key' ).
+*
+*ENDLOOP.
 
-DATA: BEGIN OF ls_seats,
-        carrid TYPE /dmo/flight-carrier_id,
-        connid TYPE /dmo/flight-connection_id,
-        seats  TYPE /dmo/flight-seats_max,
-        price  TYPE /dmo/flight-price,
-      END OF ls_seats.
+" 2.13. FOR GROUPS
+""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
+*" evalúa una tabla interna igual que loop con la adición group by
+*"
+*""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
+*" ej 1 tabla vacía
+*" No muestra miembros. Sólo los campos por los que se han hecho agrupaciones
+*
+*"Este bloque demuestra el uso de la expresión FOR GROUPS para construir
+*"una tabla interna derivada que contiene únicamente las claves de agrupación
+*"(carrier_id) a partir de una tabla fuente, aplicando orden descendente
+*"y utilizando WITHOUT MEMBERS para trabajar solo con las claves de grupo
+*"sin materializar los registros individuales.
+*
+*SELECT FROM /dmo/flight
+*  FIELDS *
+*  INTO TABLE @DATA(gt_dmo_flight).
+*
+*TYPES lty_group_keys TYPE STANDARD TABLE OF /dmo/flight-carrier_id WITH EMPTY KEY.
+*
+*out->write( VALUE lty_group_keys( FOR GROUPS gv_group OF gs_group IN gt_dmo_flight
+*                                   GROUP BY gs_group-carrier_id
+*                                   DESCENDING
+*                                   WITHOUT MEMBERS ( gv_group ) ) ).
 
-DATA gt_seats LIKE HASHED TABLE OF ls_seats WITH UNIQUE KEY carrid connid.
-"con el LIKE hacemos referencia a una variable existente en el conteto de nuestro programa
+"2.14. Tablas de rangos o RANGE TABLE - TYPE RANGE OF
+""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
+*" TI q contiene las columnas de sign option low y hight
+*" se usan como deposito interno de una condición de rangos
+*" es posible evaluarlas en una expresión de comparación con IN o en consultas where
+*" 4 COLUMNAS
+*        " 1. SIGN - manejamos valores de tipo C LONG 1
+*                " I INCLUYO E EXCLUSO
+*        " 2. OPTION - tipo C long 2
+*                " Condición de selección EQ GE ....
+*        " 3. LOW " 4. HIGH
+*                " Establecer valores minimos y maximos (between BT or not between NB
+*
+*"""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
+*"RANGE OF
+*
+*" EJ
+*" lty TIPO de tabla con el añadido de TYPE range of para definir el rango local -> tabla de rangos
+*" declaramos en linea de una tabla lt con VALUE hay que pasar el tipo de forma explicita VLUE lty_
+*" ( configuramos TI de tipo de rango )
+*" realizar tabla de rangos para realizar una lectura de BBDD
+*" SELECT * todos los coampos
+*" WHERE queremos filtrar un rango de precios IN especificar la tabla de rango
+*" INTO tabla en la que vuelca la info
+*" SIRT organizar precios de forma ascendente
+*
+*""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
+*
+*"Este bloque demuestra el uso de un tipo RANGE para filtrar registros por intervalo de precios,
+*"construyendo dinámicamente una tabla de rangos mediante VALUE,
+*"aplicándola en un SELECT con condición IN,
+*"ordenando posteriormente el resultado y mostrando tanto el rango aplicado como los datos filtrados.
+*
+*TYPES lty_price TYPE RANGE OF /dmo/flight-price.
+*
+*DATA(lt_price_range) = VALUE lty_price( ( sign   = 'I'
+*                                          option = 'BT'
+*                                          low    = '600'
+*                                          high   = '1000' ) ).
+*
+*SELECT *
+*  FROM /dmo/flight
+*  WHERE price IN @lt_price_range
+*  INTO TABLE @DATA(ltr_price).
+*
+*SORT ltr_price BY price.
+*
+*out->write( data = lt_price_range name = 'lt_price_range' ).
+*out->write( data = ltr_price name = 'ltr_price' ).
 
- "Este bloque demuestra la lectura de registros desde la tabla de base de datos /dmo/flight
- " seleccionando campos específicos (carrier_id, connection_id, seats_max y price)
- "y cargándolos directamente en una estructura de trabajo,
- " preparando los datos para su posterior procesamiento o agregación en memoria.
+" 2.15. Enumeraciones " BEGIN OF ENUM - END OF ENUM
+""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
+" BEGIN OF ENUM - END OF ENUM
+" definimos las enumeraciones con un tipo de valor y constantes ABAP
+" MEZCLAS de tipos y constantes (constantes de enumeración y type funciona como la instrucción constance)
+" SOLO los valores enumerados permitidos se pueden asignar a los objetos enumerados
+" DATA lv_ Crear una variable enumerada
 
-    SELECT carrier_id, connection_id, seats_max, price
-      FROM /dmo/flight
-      INTO @ls_seats.
+" ESTRUCTURA Cuando usas STRUCTURE ls_type, los literales del ENUM ya no están en el espacio global,
+" sino que quedan encapsulados dentro de la estructura generada.
 
-      "Este bloque demuestra el uso de la sentencia COLLECT para insertar registros en
-      "una tabla interna HASHED con clave única, permitiendo que,
-      "si ya existe una entrada con la misma clave (carrid, connid),
-      "los campos numéricos se acumulen automáticamente en lugar de generar un nuevo registro.
-      " si no existe una entrada con la misma clave primeria se inserta con el contenido de la estructura
-      " (sort = en el mismo orden que la tabla y en
-      " hash = el algoritmo inserta la nueva fila de acuerdo a sus valores clave)
+"CASE ENDCASE
+" definimos el mensaje a mostrar en función del valor que toma la variable
+" SI no se toma ninguna de las constantes indicadas dentro del case saldría que el valor no existe
 
-        COLLECT ls_seats INTO gt_seats.
+""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
+"BLOQUE 1
+*"Este bloque demuestra la definición de un tipo ENUM en ABAP moderno,
+*"permitiendo crear un conjunto cerrado de valores constantes tipados (colores),
+*"asignar un valor inicial mediante VALUE, mostrarlo por consola
+*"y posteriormente cambiar su valor manteniendo control de tipos estricto.
+*" Un objeto de valor de tipo enumerado SOLO SE PUEDE ASIGNAR AL conjunto de valores definido en GTY_colors
+*
+*TYPES: BEGIN OF ENUM gty_colors,
+*         c_white,
+*         c_black,
+*         c_purple,
+*         c_red,
+*         c_blue,
+*       END OF ENUM gty_colors.
+*
+*DATA lv_color TYPE gty_colors VALUE c_purple.
+*
+*out->write( lv_color ). " Establecer un punto de interrupción para ver el valor que toma lv_color . tipo ENUM
+*
+*lv_color = c_black.     " Un objeto de valor de tipo enumerado SOLO SE PUEDE ASIGNAR AL conjunto de valores definido en GTY_colors
+**lv_color = c_rosa.      " error
+*
+*out->write( lv_color ).
 
-  ENDSELECT.
+" BLOQUE 2
+"Este bloque demuestra la definición de un ENUM con la adición de STRUCTURE,
+"permitiendo que los literales del enumerado se utilicen como componentes
+"de una estructura tipada (ls_type). Posteriormente se declara una variable
+"del tipo enumerado, se muestra su valor inicial y se reasigna
+"uno de los valores definidos dentro del conjunto cerrado del ENUM.
 
+TYPES: BEGIN OF ENUM gty_colors STRUCTURE ls_type,
+         c_white,
+         c_black,
+         c_purple,
+         c_red,
+         c_blue,
+       END OF ENUM gty_colors STRUCTURE ls_type.
+
+DATA lv_color TYPE gty_colors. " punto de control para ver como varía el valor de lv_color
+
+out->write( lv_color ).
+
+*lv_color = c_white.  " ERRor VER ESTRUCTURA Cuando usas STRUCTURE ls_type, los literales del ENUM ya no están en el espacio global, sino que quedan encapsulados dentro de la estructura generada.
+lv_color = ls_type-c_purple.
+
+out->write( lv_color ).
+
+
+"BLOQUE 4
+"Este bloque demuestra el uso de la sentencia CASE sobre un tipo ENUM definido con STRUCTURE,
+"evaluando cada literal del enumerado mediante su calificación con la estructura (ls_type-),
+"permitiendo ejecutar lógica específica según el valor tipado del ENUM y garantizando
+"control estricto de valores dentro del conjunto cerrado definido.
+
+CASE lv_color.
+  WHEN ls_type-c_white.
+    out->write( 'The color is WHITE' ).
+  WHEN ls_type-c_black.
+    out->write( 'The color is BLACK' ).
+  WHEN ls_type-c_purple.
+    out->write( 'The color is PURPLE' ).
+  WHEN ls_type-c_red.
+    out->write( 'The color is RED' ).
+  WHEN OTHERS.
+    out->write( 'The value doesn´t exist' ).
+ENDCASE.
 
 
   ENDMETHOD.
