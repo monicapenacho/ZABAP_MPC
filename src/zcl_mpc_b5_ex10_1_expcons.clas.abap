@@ -574,24 +574,148 @@ CLASS zcl_mpc_b5_ex10_1_expcons IMPLEMENTATION.
 " evita la declaración de variables auxiliares
 
 
-"Este bloque demuestra el uso de la expresión constructora REF para crear una referencia tipada (TYPE REF TO i)
-"a una variable existente, evidenciando que no se realiza copia del dato sino que ambas expresiones
-"comparten la misma dirección de memoria, accediendo al valor mediante el operador de desreferenciación (->*).
+" REF REFERENCIA A UNA (VARIABLE). USAMOS TIPOS PRIMITIVOS
+""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
+*
+*"Este bloque demuestra el uso de la expresión constructora REF para crear una referencia tipada (TYPE REF TO i)
+*"a una variable existente, evidenciando que no se realiza copia del dato sino que ambas expresiones
+*"comparten la misma dirección de memoria, accediendo al valor mediante el operador de desreferenciación (->*).
+*
+*DATA: lv_int_value TYPE i VALUE 100,
+*      lv_ref_int   TYPE REF TO i.
+*
+*lv_ref_int = REF #( lv_int_value ). "obtenemos una referencia a la variable que está dentro del ()
+*
+*"uSAMOS autoreferencia # porque ya hemos indicado el tipo anteriormente
+*
+*out->write( data = lv_int_value name = 'Original value' ).
+*out->write( data = lv_ref_int->* name = 'Value through reference' ). "(*)
+*
+*"(*) accedemos al valor de lv_int_value a través de la refeferenia
 
-DATA: lv_int_value TYPE i VALUE 100,
-      lv_ref_int   TYPE REF TO i.
 
-lv_ref_int = REF #( lv_int_value ).
+" ITAB REFERENCIA A TABLAS INTERNAS
+""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
+*"Este bloque demuestra la inicialización compacta de una tabla interna tipada con /dmo/flight
+*"mediante la expresión constructora VALUE,
+*"creando múltiples registros en una sola instrucción, y posteriormente el uso de la expresión
+*" REF para obtener una referencia
+*"a una línea específica por índice (posición 2),
+*"accediendo a su contenido mediante desreferenciación (->*) para mostrarlo en consola.
+*
+*    DATA lt_flight TYPE TABLE OF /dmo/flight WITH EMPTY KEY.
+*
+*    lt_flight = VALUE #(
+*      ( client         = 100
+*        carrier_id     = 'CO'
+*        connection_id  = 1101
+*        currency_code  = 'COP'
+*        flight_date    = cl_abap_context_info=>get_system_date( )
+*        plane_type_id  = 'AF-1234'
+*        price          = 200
+*        seats_max      = 100
+*        seats_occupied = 20 )
+*
+*      ( client         = 100
+*        carrier_id     = 'MX'
+*        connection_id  = 1102
+*        currency_code  = 'MXN'
+*        flight_date    = cl_abap_context_info=>get_system_date( )
+*        plane_type_id  = 'XX-1234'
+*        price          = 400
+*        seats_max      = 60
+*        seats_occupied = 50 )
+*
+*      ( client         = 100
+*        carrier_id     = 'PE'
+*        connection_id  = 1103
+*        currency_code  = 'USD'
+*        flight_date    = cl_abap_context_info=>get_system_date( )
+*        plane_type_id  = 'PE-1234'
+*        price          = 150
+*        seats_max      = 80
+*        seats_occupied = 20 )
+*       ).
+*
+*    DATA(lr_flight) = REF #( lt_flight[ 2 ] ).
+*
+*    out->write( data = lr_flight name = 'Reference Index 2 of ITAB lt_flight sin operador de navegación' ).
+*    out->write( data = lr_flight->* name = 'Reference Index 2 of ITAB lt_flight' ). " no es necesario operador de navegación
+*
+*"Apuntar a un registro que no exista - incluir OPTIONAL (evitar DUMP o error de programación) y apuntar a un registro vacío
+*
+*    DATA(lr_flight2) = REF #( lt_flight[ 6 ] OPTIONAL ).
+*
+*    out->write( data = lr_flight2 name = 'Reference Index 6 of ITAB lt_flight sin operador de navegaciñon' ).
 
-out->write( data = lv_int_value name = 'Original value' ).
-out->write( data = lv_ref_int->* name = 'Value through reference' ).
+" REF Referencias a objeto (apuntamos a ese espacio de memoria)
+""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
+*
+*"Este bloque demuestra la creación de una instancia de clase mediante la expresión constructora NEW,
+*"almacenando la referencia del objeto en lor_emp1, y posteriormente el uso de la expresión REF
+*"para crear una segunda referencia (lor_emp2) que apunta al mismo objeto en memoria,
+*"evidenciando el concepto de referencias compartidas y visualizando el contenido del objeto en consola.
+*
+*DATA(lor_emp1) = NEW zcl_mpc_b5_ex10_2_expcons_new( iv_age = 22 iv_name = 'Sol' ).
+*
+*DATA(lor_emp2) = REF #( lor_emp1 ).
+*
+*out->write( data = lor_emp2 name = 'Object Reference' ).
+
+
+"1.9. CAST
+""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
+" Convierte tipos de datos de forma explícita, garantizando una conversión correcta
+" según las reglas del lenguaje.
+
+"Down Casting
+""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
+"Convierte una referencia de un tipo general (clase base)
+"a un tipo más específico (subclase) para acceder a métodos y atributos específicos de la subclase.
+
+"sintaxis
+""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
+" DATA(new_ref) = CAST target_type( source ).
+
+" new_ref = donde guardamos la operación con CAST
+" source = objeto o valor que estamos convirtiendo
+" es posible encadenamiento de métodos
+
+"Este bloque demuestra el uso de la expresión CAST para realizar un down casting desde una referencia genérica (TYPE REF TO data)
+"a un tipo estructurado concreto (t_struc), permitiendo acceder tanto al contenido completo mediante desreferenciación (->*)
+"como a sus componentes individuales (col1, col2), evidenciando conversión explícita de tipo en tiempo de ejecución.
+
+TYPES: BEGIN OF t_struc,
+         col1 TYPE i,
+         col2 TYPE i,
+       END OF t_struc.
+
+DATA lr_data TYPE REF TO data.
+DATA ls_int  TYPE t_struc.
+
+lr_data = NEW t_struc( ).
+
+ls_int = CAST t_struc( lr_data )->*.
+ls_int-col1 = CAST t_struc( lr_data )->col1.
+ls_int-col2 = CAST t_struc( lr_data )->col2.
+
+out->write( data = ls_int name = 'ls_int' ).
+out->write( data = ls_int-col1 name = 'ls_int-col1' ).
+out->write( data = ls_int-col2 name = 'ls_int-col2' ).
+
+"otra forma de asignar
+
+"Este bloque demuestra una asignación directa mediante down casting,
+"utilizando la expresión CAST para convertir una referencia genérica (lr_data)
+"al tipo estructurado concreto t_struc y desreferenciando inmediatamente (->*)
+"para transferir el contenido completo a la estructura ls_int en una sola instrucción.
+
+CAST t_struc( lr_data )->* = ls_int.
+
+out->write( data = ls_int name = 'ls_int' ).
+
+
 
  ENDMETHOD.
-
-
-
-
-
-
 
 ENDCLASS.
